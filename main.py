@@ -3,7 +3,6 @@ from numpy import linalg as la
 from numpy import random as rnd
 import matplotlib.pyplot as plt
 import math
-from tqdm import tqdm
 from numba import jit
 from sklearn.linear_model import LinearRegression
 from concurrent.futures import ThreadPoolExecutor
