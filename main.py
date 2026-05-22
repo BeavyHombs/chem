@@ -7,58 +7,61 @@ from numba import jit
 from sklearn.linear_model import LinearRegression
 from concurrent.futures import ThreadPoolExecutor
 
-
+@jit(nogil=True)
 def simulate(t):
   # use local variables because stack accesses are faster than reading from global
-  l, n, m, k, pi = .005, 1048576, 1.008 / (6.022e23), 1.380649e-23, 3.1415926
+  l, n, m, k, pi = .005, 4194304, 1.008 / (6.02214e23), 1.380649e-23, 3.141592653589793
   
-  r = [None] * n
-  v = [None] * n
+  r = np.zeros((n, 3))
+  v = np.zeros((n, 3))
   
   for i in range(n):
     theta = rnd.uniform(-pi, pi)
-    phi = rnd.uniform(-pi/2, pi/2)
+    phi = rnd.uniform(-pi / 2, pi / 2)
     x, y, z = math.cos(theta) * math.cos(phi), math.sin(theta) * math.cos(phi), math.sin(phi)
     v[i] = np.array([x, y, z]) / math.sqrt(x**2 + y**2 + z**2) * rnd.normal(0, math.sqrt(k*t/m))
     r[i] = np.array([rnd.uniform(0, l), rnd.uniform(0, l), rnd.uniform(0, l)])
   
-  avg_vel = np.sum(v) / n
-  v = [vi - avg_vel for vi in v]
+  avg_vel = np.sum(v, axis=0) / n
+  for i in range(n):
+    v[i] -= avg_vel
   
-  def cur_t():
-    return .333333333 * m / k / n * np.sum([np.sum(np.square(vi)) for vi in v])
-  
-  init_t = cur_t()
-  v = [vi * math.sqrt(t / init_t) for vi in v]
+  total_v = 0
+  for vi in v:
+    total_v += np.sum(np.square(vi))
+  init_t = m / k / n * total_v / 3
+
+  scale = math.sqrt(t / init_t)
+  for i in range(n):
+    v[i] *= scale
 
   return loop(r, v, m, l, t)
 
 
 @jit(nogil=True)
 def loop(r, v, m, l, t):
-  dt = 1e-6
-  time = 0
+  dt = 5e-6
   n = 0
   total = 0
-  n_iters = 128
+  n_iters = 1024
+  surface_area = 6*l*l
 
   for _ in range(n_iters):
-    j = 0
-    for ri, vi in zip(r, v):
-      j += (2 * m * math.fabs(vi[0]) * (ri[0] < 0 or ri[0] > l))
-      j += (2 * m * math.fabs(vi[1]) * (ri[1] < 0 or ri[1] > l))
-      j += (2 * m * math.fabs(vi[2]) * (ri[2] < 0 or ri[2] > l))
-
-    for i, (ri, vi) in enumerate(zip(r, v)):
-      r[i] = ri + vi * dt
-      v[i] = np.array([vi[0] * ((ri[0] >= 0 and ri[0] <= l) * 2 - 1),
-                       vi[1] * ((ri[1] >= 0 and ri[1] <= l) * 2 - 1),
-                       vi[2] * ((ri[2] >= 0 and ri[2] <= l) * 2 - 1)])
+    j1, j2, j3 = 0, 0, 0
+    for i in range(len(r)):
+      r[i] += v[i] * dt
+      a0 = r[i][0] <= 0 or r[i][0] >= l
+      a1 = r[i][1] <= 0 or r[i][1] >= l
+      a2 = r[i][2] <= 0 or r[i][2] >= l
+      j1 += 2 * m * math.fabs(v[i][0]) * a0
+      j2 += 2 * m * math.fabs(v[i][1]) * a1
+      j3 += 2 * m * math.fabs(v[i][2]) * a2
+      v[i][0] *= a0 * -2 + 1
+      v[i][1] *= a1 * -2 + 1
+      v[i][2] *= a2 * -2 + 1
   
-    p = j / (6 * l * l) / dt
+    p = (j1 + j2 + j3) / surface_area / dt
     total += p
-  
-    time += dt
 
   return t, total / n_iters
 
@@ -73,7 +76,7 @@ def main():
       f.write(repr(it) + '\n')
 
   fig = plt.figure()
-  x = np.array([1048576 / 6.02214076e23 * temp for temp in result_map.keys()]).reshape(-1, 1)
+  x = np.array([4194304 / 6.02214076e23 * temp for temp in result_map.keys()]).reshape(-1, 1)
   y = np.array([0.000000125 * pressure for pressure in result_map.values()]).reshape(-1, 1)
   reg = LinearRegression().fit(x, y)
   plt.plot(x, y, 'bo')
