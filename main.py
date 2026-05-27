@@ -57,29 +57,29 @@ def loop(r, v, m, l, t):
 
       if r[i][0] < 0:
         j1 += 2 * m * math.fabs(v[i][0])
-        r[i][0] = -r[i][0]
+        r[i][0] = 0
         v[i][0] *= -1
       elif r[i][0] > l:
         j1 += 2 * m * math.fabs(v[i][0])
-        r[i][0] = 2 * l - r[i][0]
+        r[i][0] = l
         v[i][0] *= -1
 
       if r[i][1] < 0:
         j2 += 2 * m * math.fabs(v[i][1])
-        r[i][1] = -r[i][1]
+        r[i][1] = 0
         v[i][1] *= -1
       elif r[i][1] > l:
         j2 += 2 * m * math.fabs(v[i][1])
-        r[i][1] = 2 * l - r[i][1]
+        r[i][1] = l
         v[i][1] *= -1
 
       if r[i][2] < 0:
         j3 += 2 * m * math.fabs(v[i][2])
-        r[i][2] = -r[i][2]
+        r[i][2] = 0
         v[i][2] *= -1
       elif r[i][2] > l:
         j3 += 2 * m * math.fabs(v[i][2])
-        r[i][2] = 2 * l - r[i][2]
+        r[i][2] = l
         v[i][2] *= -1
   
     p = (j1 + j2 + j3) / surface_area / dt
