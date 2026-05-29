@@ -2,6 +2,7 @@ import numpy as np
 from numpy import linalg as la
 from numpy import random as rnd
 import matplotlib.pyplot as plt
+from matplotlib import animation
 import math
 from numba import jit
 from sklearn.linear_model import LinearRegression
@@ -57,35 +58,73 @@ def loop(r, v, m, l, t):
 
       if r[i][0] < 0:
         j1 += 2 * m * math.fabs(v[i][0])
-        r[i][0] = 0
+        r[i][0] = -r[i][0]
         v[i][0] *= -1
       elif r[i][0] > l:
         j1 += 2 * m * math.fabs(v[i][0])
-        r[i][0] = l
+        r[i][0] = 2 * l - r[i][0]
         v[i][0] *= -1
 
       if r[i][1] < 0:
         j2 += 2 * m * math.fabs(v[i][1])
-        r[i][1] = 0
+        r[i][1] = -r[i][1]
         v[i][1] *= -1
       elif r[i][1] > l:
         j2 += 2 * m * math.fabs(v[i][1])
-        r[i][1] = l
+        r[i][1] = 2 * l - r[i][1]
         v[i][1] *= -1
 
       if r[i][2] < 0:
         j3 += 2 * m * math.fabs(v[i][2])
-        r[i][2] = 0
+        r[i][2] = -r[i][2]
         v[i][2] *= -1
       elif r[i][2] > l:
         j3 += 2 * m * math.fabs(v[i][2])
-        r[i][2] = l
+        r[i][2] = 2 * l - r[i][2]
         v[i][2] *= -1
   
     p = (j1 + j2 + j3) / surface_area / dt
     total += p
 
   return t, total / n_iters
+
+
+def animate_gas(t=300, n=256, l=.005):
+  m, k = 1.008 / (6.02214076e23), 1.380649e-23
+  dt = 1e-6
+  sigma = math.sqrt(k * t / m)
+
+  r = rnd.uniform(0, l, (n, 3))
+  v = rnd.normal(0, sigma, (n, 3))
+  v -= np.sum(v, axis=0) / n
+
+  total_v = np.sum(np.square(v))
+  init_t = m / k / n * total_v / 3
+  v *= math.sqrt(t / init_t)
+
+  fig = plt.figure()
+  ax = fig.add_subplot(111, projection="3d")
+  ax.set_xlim(0, l)
+  ax.set_ylim(0, l)
+  ax.set_zlim(0, l)
+  ax.set_xlabel("x")
+  ax.set_ylabel("y")
+  ax.set_zlabel("z")
+  ax.set_title(f"3D gas particle simulation at {t} K")
+
+  points = ax.scatter(r[:, 0], r[:, 1], r[:, 2], s=8)
+
+  def update(_):
+    r[:] += v * dt
+    hit = (r < 0) | (r > l)
+    v[hit] *= -1
+    np.clip(r, 0, l, out=r)
+    points._offsets3d = (r[:, 0], r[:, 1], r[:, 2])
+    return points,
+
+  ani = animation.FuncAnimation(fig, update, frames=300, interval=30, blit=False)
+  fig.animation = ani
+  return ani
 
 
 def main():
@@ -97,11 +136,13 @@ def main():
       result_map[it[0]] = it[1]
       f.write(repr(it) + '\n')
 
+  ani = animate_gas()
   fig = plt.figure()
   x = np.array([65536 / 6.02214076e23 * temp for temp in result_map.keys()]).reshape(-1, 1)
   y = np.array([0.000000125 * pressure for pressure in result_map.values()]).reshape(-1, 1)
   reg = LinearRegression().fit(x, y)
   plt.plot(x, y, 'bo')
+  plt.plot(x, reg.predict(x), 'r-')
   plt.xlabel("nT (mol*K)")
   plt.ylabel("PV (Pa*m^3)")
   plt.suptitle("PV vs. nT", y=1.05, fontsize=18)
